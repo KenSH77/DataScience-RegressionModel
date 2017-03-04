@@ -1,0 +1,104 @@
+---
+title: "Week4Assignment"
+author: "Ken Gu"
+date: "2017年3月4日"
+output: html_document
+---
+
+Executive Summary:
+Background: 
+A magazine (Motor Trend) about the automobile industry. Looking at a data set of a collection of cars, they are interested in exploring the relationship between a set of variables and miles per gallon (MPG) (outcome). They are particularly interested in the following two questions:
+
+“Is an automatic or manual transmission better for MPG”
+"Quantify the MPG difference between automatic and manual transmissions"
+
+Conclusion:
+By using hypothesis testing and linear regression, it is concluded that there is a yawning gap between automatic and manual transmission for the MPG. In addition, to adjust for other variables - consisting of displacement, number of cylinders, weight, the result shows that these observations have significant impact on the mpg consumption, rather than only transmission.
+
+Multivariable model selection strategy:
+We use nested likelikhood ratio tests for model selection.
+In detail: Given a coefficient that I’m interested in, I
+like to use covariate adjustment and multiple models to probe that effect to evaluate it for robustness and to see what other covariates knock it out or amplify it. In other words, if I have an effect, or absence of an effect, that I’d like to report, I try to first come up with criticisms of that effect and
+then use models to try to answer those criticisms. 
+
+Step 1: load library and data
+```{r}
+library(ggplot2)
+library(dplyr)
+library(car)
+data(mtcars)
+datamtcars <- mutate(mtcars, amvar=as.factor(am))
+
+```
+Step 2: Data Cleaning
+```{r}
+# clean the data - add new variable - amvar - as factor
+dataautocars <- filter(datamtcars, amvar==0)
+datamanucars <- filter(datamtcars, amvar==1)
+dataautocars$amvar = "auto"
+datamanucars$amvar = "manual"
+datamtcars <- data.frame()
+datamtcars <- rbind(dataautocars, datamanucars)
+datamtcars <- select(datamtcars, -am)
+```
+
+Step 3: Use explortory analysis to compare the automatic/manual vs mpg
+```{r}
+grp1 <- group_by(datamtcars, amvar)
+datamean <- summarise (grp1, mean(mpg))
+datamean
+g1 <- ggplot(data=datamtcars, aes(y=mpg, x=amvar, fill=amvar)) + geom_violin(colour="blue") + xlab("Type Of Auto/Manual") + ylab("Mpg Consumption")
+g1
+```
+From the above plot, its clearly stated that the auto(red color) transmission has less MPG consumption 
+Step 4: quantify the difference between automatic cars vs. manual cars for the mpg usage
+```{r}
+quantifyDiff <- datamean[1,2] - datamean[2,2]
+quantifyDiff
+```
+The quantifiy difference between auto vs manual is 7.24 MPG
+```{r}
+fit2 <- lm(mpg~amvar, data=datamtcars)
+rSingle <- summary(fit2)
+
+resi <- resid(fit2)
+testResult <- t.test(dataautocars$mpg, datamanucars$mpg)
+```
+From the above t-test, we can see the p-value is only 0.001374, therefore we reject the null hypothesis. 
+The assumption is that all other variables inside the mtcars dataset are same while we compare only auto/manual.
+
+Step 5: Evaluation On MultiVariables and finalize the selection
+```{r}
+fitall <- lm(mpg ~ ., datamtcars)
+vifResult <- vif(fitall)
+par(mfrow=c(2,2))
+plot(fitall)
+# from the vif result, we pick up the most 4 observations - disp, cyl, wt, hp in addition to the amvar
+fit3 <- update(fit2, mpg ~ amvar + disp)
+fit4 <- update(fit2, mpg ~ amvar + disp + cyl)
+fit5 <- update(fit2, mpg ~ amvar + disp + cyl + wt)
+fit6 <- update(fit2, mpg ~ amvar + disp + cyl + wt + hp)
+
+anovavalue <- anova(fit2, fit3, fit4, fit5, fit6)
+anovavalue
+
+newMutliModel <- lm(mpg~amvar + disp + cyl + wt, datamtcars)
+summaryMulti <- summary(newMutliModel)
+summaryMulti
+
+```
+From the above code, we use the vif fucntion to help on the model selection, we pick up the most 4 observations - disp, cyl, wt, hp in addition to the amvar
+From the anova value, we find that disp, cyl, wt tend to have more impacts. As a result, we select this new model
+
+Step 6: Calculate the residuals using plot
+```{r}
+par(mfrow=c(2,2))
+plot(newMutliModel)
+```
+
+
+* 
+From the new model, we see 81% of the variance.
+The multi variables shows that the question of auto car and manual car is not fully anwsered and the context of displacement, number of cylinders, weight should be taken into total consideration.
+
+
